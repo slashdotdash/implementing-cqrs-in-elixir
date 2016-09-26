@@ -12,4 +12,4 @@ A command **must have** exactly one registered handler. It is an error to have a
 
 Domain events indicate that something of importance has occurred,  within the context of an aggregate root. They are named in the past tense: account registered; funds transferred; fraudulent activity detected.
 
-A domain event may have zero, one or more registered handlers. It is acceptable to have no handler for a domain, outside of the aggregate root that raised the event.
+A domain event may have zero, one or more registered handlers. It is acceptable to have no registered handler for a domain event.
