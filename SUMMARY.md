@@ -2,7 +2,7 @@
 
 * [Introduction](README.md)
     * What is Command Query Responsibility Segregation (CQRS)?
-    * Event sourcing
+    * [Event-sourcing](architecture/event-sourcing.md)
 
 * Building blocks
     * [Event-sourced aggregate roots](building-blocks/event-sourced-aggregate-roots.md)
