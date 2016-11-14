@@ -15,4 +15,4 @@
 - Events are immutable.
 - Events provide a history of your poor design decisions.
 - Demands a richer understanding of the domain being modelled over basic CRUD activities.
-- Slow iteration of the domain model as production events must be support forever.
+- Slows iteration of the domain model as production events must be supported forever.
