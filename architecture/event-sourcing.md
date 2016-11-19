@@ -14,8 +14,10 @@
 
 - Events are immutable.
 - Events provide a history of your poor design decisions.
+- Event versioning.
 - Demands a richer understanding of the domain being modelled over basic CRUD activities.
 - Slows iteration of the domain model as production events must be supported forever.
+- Eventual consistency.
 
 ## Concept
 

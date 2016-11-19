@@ -13,3 +13,5 @@
 * Design decisions
   * [Exceptions](design-decisions/exceptions.md)
   * [Pure functional core](design-decisions/pure-functional-core.md)
+
+* [References](REFERENCES.md)
