@@ -2,95 +2,149 @@
 
 An aggregate root must conform to the following behaviour to implement the event-sourcing pattern.
 
-- Each public function must accept a command, record any raised domain events, and return successfully or with an error.
-- Its internal state may only be modified by applying a raised domain event to its current state.
+- Each public function must accept a command and return any resultant domain events, or raise an error.
+- Its internal state may only be modified by applying a domain event to its current state.
 - Its internal state can be rebuilt from an initial empty state by replaying all domain events in the order they were raised.
 
-The command may be a single object or a list of arguments to the function. Current state of an aggregate root is a left fold of its raised domain events.
+The command may be a single object or a list of arguments to the function. Current state of an aggregate root is a left fold of its raised domain events applied to its empty state.
 
-In Elixir, the aggregate root's state is required as an argument to each command function. The standard Elixir pattern is to indicate success or failure of a function by returning `:ok` or `:error` atoms. So an `{:ok, state}` tuple containing the modified state, including any raised domain events, is returned on success. An `{:error, reason}` tuple is returned on failure. Pattern matching can be used on the return value to determine whether the command succeeded.
+## Implementing an aggregate root in Elixir
 
-## Building an aggregate root
-
-We can build an Elixir module that implements event-sourcing using the requirements defined above. An aggregate root must track its internal state and any raised domain events. It will also require a unique identifier.
+We can build an Elixir module that implements event-sourcing using the requirements defined above.
 
 ```elixir
 defmodule AggregateRoot do
-  defstruct uuid: nil, pending_events: [], state: nil
+  # aggregate root state  
+  defstruct [
+    uuid: nil,
+    name: nil,
+  ]
 
-  def new(uuid) do
-    %AggregateRoot{uuid: uuid, state: %{}}
+  # domain event
+  defmodule CreatedEvent do
+    defstruct [
+      uuid: nil,
+      name: nil,
+    ]
   end
 
-  defp update(%AggregateRoot{uuid: uuid, pending_events: pending_events, state: state} = aggregate, event) do
-    state = AggregateRoot.apply(state, event)
+  # public command API
+  def create(%AggregateRoot{}, uuid, name) do
+    %CreatedEvent{
+      uuid: uuid,
+      name: name,
+    }
+  end
 
+  # state mutator
+  def apply(%AggregateRoot{} = aggregate, %CreatedEvent{uuid: uuid, name: name}) do
     %AggregateRoot{aggregate |
-      pending_events: pending_events ++ [event],
-      state: state,
+      uuid: uuid,
+      name: name,
     }
   end
 end
 ```
 
-The `update/2` function is used to record a raised domain event, within the `pending_event` list, and call the aggregate root's `apply\2` function to modify internal state. Pattern matching on the event type is used to ensure the appropriate apply method is called.
+Each command function requires the aggregate root's state and the command, or command arguments. The return value may be none, one, or many resultant domain events.
+
+The standard Elixir pattern is to indicate success or failure of a function by returning `:ok` or `:error` atoms. So you can choose to return an `{:ok, events}` tuple with the resultant domain events on success and return an `{:error, reason}` tuple on failure.
 
 ## Example bank account aggregate root
 
-Expanding the aggregate root module into a concrete bank account example. The internal state is defined as a struct within a `State` module.
+Expanding the aggregate root module into a concrete bank account example. The internal state is defined as a struct containing the account number, balance, and account state.
 
-Domain events are also structs defined within their own module. This allows simple pattern matching for event handling, such as in the aggregate's `apply/2` functions. It is worth remembering that domain events are the contracts that are recorded within the immutable event stream for the aggregate root. A recorded domain event cannot be changed; history cannot be altered.
+Domain events are also defined as structs within their own modules. This allows simple pattern matching for state mutating in the aggregate's `apply/2` functions.
 
-This example provides a single public API function to open an account (`open_account/3`). A guard clause is used to protect the account from being opened with an invalid initial balance. This demonstrates how business rule violations can be handled with `ok` or `:error` denoted tuples.
+It is worth remembering that domain events are the contracts that are recorded within the immutable event stream for the aggregate root. A recorded domain event cannot be changed; history cannot be altered.
+
+This example provides a three public API functions.
+
+1. To open an account: `open_account/2`.
+2. To deposit money: `deposit/2`.
+3. To withdraw money: `withdraw/2`.
+
+A guard clause is used to prevent the account from being opened with an invalid initial balance. This protects the aggregate from violating the business rule that an account must be opened with a positive balance.
 
 ```elixir
-defmodule BankAccount do
-  defstruct uuid: nil, pending_events: [], state: nil
+defmodule Commanded.ExampleDomain.BankAccount do
+  defstruct [
+    account_number: nil,
+    balance: 0,
+    state: nil,
+  ]
 
-  defmodule State do
-    defstruct account_number: nil, balance: nil
+  alias Commanded.ExampleDomain.BankAccount
+
+  defmodule Commands do
+    defmodule OpenAccount,        do: defstruct [:account_number, :initial_balance]
+    defmodule DepositMoney,       do: defstruct [:account_number, :transfer_uuid, :amount]
+    defmodule WithdrawMoney,      do: defstruct [:account_number, :transfer_uuid, :amount]
+    defmodule CloseAccount,       do: defstruct [:account_number]
   end
 
   defmodule Events do
-    defmodule BankAccountOpened do
-      defstruct account_number: nil, initial_balance: nil
+    defmodule BankAccountOpened,  do: defstruct [:account_number, :initial_balance]
+    defmodule MoneyDeposited,     do: defstruct [:account_number, :transfer_uuid, :amount, :balance]
+    defmodule MoneyWithdrawn,     do: defstruct [:account_number, :transfer_uuid, :amount, :balance]
+    defmodule AccountOverdrawn,   do: defstruct [:account_number, :balance]
+    defmodule BankAccountClosed,  do: defstruct [:account_number]
+  end
+
+  alias Commands.{OpenAccount,DepositMoney,WithdrawMoney,CloseAccount}
+  alias Events.{BankAccountOpened,MoneyDeposited,MoneyWithdrawn,AccountOverdrawn,BankAccountClosed}
+
+  def open_account(%BankAccount{state: nil}, %OpenAccount{account_number: account_number, initial_balance: initial_balance})
+    when is_number(initial_balance) and initial_balance > 0
+  do
+    %BankAccountOpened{account_number: account_number, initial_balance: initial_balance}
+  end
+
+  def deposit(%BankAccount{state: :active, balance: balance}, %DepositMoney{account_number: account_number, transfer_uuid: transfer_uuid, amount: amount})
+    when is_number(amount) and amount > 0
+  do
+    balance = balance + amount
+
+    %MoneyDeposited{account_number: account_number, transfer_uuid: transfer_uuid, amount: amount, balance: balance}
+  end
+
+  def withdraw(%BankAccount{state: :active, balance: balance}, %WithdrawMoney{account_number: account_number, transfer_uuid: transfer_uuid, amount: amount})
+    when is_number(amount) and amount > 0
+  do
+    case balance - amount do
+      balance when balance < 0 ->
+        [
+          %MoneyWithdrawn{account_number: account_number, transfer_uuid: transfer_uuid, amount: amount, balance: balance},
+          %AccountOverdrawn{account_number: account_number, balance: balance},
+        ]
+      balance ->
+        %MoneyWithdrawn{account_number: account_number, transfer_uuid: transfer_uuid, amount: amount, balance: balance}
     end
-   end
- end
-
-  def new(uuid) do
-    %BankAccount{uuid: uuid, state: %BankAccount.State{}}
   end
 
-  # public API
-
-  def open_account(%BankAccount{} = account, account_number, initial_balance) when initial_balance > 0 do
-    account =
-      account
-      |> update(%BankAccountOpened{account_number: account_number, initial_balance: initial_balance})
-
-    {:ok, account}
-  end
-
-  def open_account(%BankAccount{} = account, account_number, initial_balance) when initial_balance <= 0 do
-    {:error, :initial_balance_must_be_above_zero}
-  end
-
-  defp update(%BankAccount{uuid: uuid, pending_events: pending_events, state: state} = aggregate, event) do
-    state = BankAccount.apply(state, event)
-
-    %BankAccount{aggregate |
-      pending_events: pending_events ++ [event],
-      state: state,
-    }
+  def close_account(%BankAccount{state: :active}, %CloseAccount{account_number: account_number}) do
+    %BankAccountClosed{account_number: account_number}
   end
 
   # state mutators
 
-  def apply(%BankAccount.State{} = state, %BankAccountOpened{} = account_opened) do
-    %BankAccount.State{state |
-      account_number: account_opened.account_number,
-      balance: account_opened.initial_balance,
+  def apply(%BankAccount{} = state, %BankAccountOpened{account_number: account_number, initial_balance: initial_balance}) do
+    %BankAccount{state |
+      account_number: account_number,
+      balance: initial_balance,
+      state: :active,
+    }
+  end
+
+  def apply(%BankAccount{} = state, %MoneyDeposited{balance: balance}), do: %BankAccount{state | balance: balance}
+
+  def apply(%BankAccount{} = state, %MoneyWithdrawn{balance: balance}), do: %BankAccount{state | balance: balance}
+
+  def apply(%BankAccount{} = state, %AccountOverdrawn{}), do: state
+
+  def apply(%BankAccount{} = state, %BankAccountClosed{}) do
+    %BankAccount{state |
+      state: :closed,
     }
   end
 end
@@ -99,12 +153,22 @@ end
 ### Using the aggregate root
 
 ```elixir
-with account <- BankAccount.new("123"),
-  {:ok, account} <- BankAccount.open_account(account, "ACC123", 100),
-  {:ok, account} <- BankAccount.deposit(account, 50),
-do: account
+# initial empty account state
+account = %BankAccount{}
+
+# opening the account returns an account opened event
+account_opened = BankAccount.open_account(account, %OpenAccount{account_number: "ACC123", initial_balance: 100})
+
+# mutate the bank account state by applying the opened event
+account =  BankAccount.apply(account, account_opened)
 ```
 
-### Implementing an aggregate root with `eventsourced`
+An aggregate root command function may return none (`nil` or `[]`), one, or many domain events. To mutate the aggregate's state in a generic way we use `List.wrap/1` to wrap the events in a list. If the events are already a list, it returns the events. If the events are nil, it returns an empty list. The events list is reduced by calling the `apply/2` function on the aggregate root. Using its state as the accumulator and passing each event in turn.
 
-* [eventsourced](https://github.com/slashdotdash/eventsourced)
+```elixir
+events = BankAccount.open_account(account, %OpenAccount{account_number: "ACC123", initial_balance: 100})
+
+events
+|> List.wrap
+|> Enum.reduce(account, &BankAccount.apply(&2, &1))
+```

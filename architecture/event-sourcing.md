@@ -16,3 +16,9 @@
 - Events provide a history of your poor design decisions.
 - Demands a richer understanding of the domain being modelled over basic CRUD activities.
 - Slows iteration of the domain model as production events must be supported forever.
+
+## Concept
+
+```
+f(state, event) => state
+```

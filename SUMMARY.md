@@ -9,3 +9,7 @@
     * [Commands and domain events](building-blocks/commands-and-domain-events.md)
     * Projections
     * Process managers
+
+* Design decisions
+  * [Exceptions](design-decisions/exceptions.md)
+  * [Pure functional core](design-decisions/pure-functional-core.md)
