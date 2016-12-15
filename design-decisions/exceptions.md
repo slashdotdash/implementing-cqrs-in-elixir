@@ -2,7 +2,7 @@
 
 ## Broken invariants
 
-Aggregate roots should protect themselves against commands that would cause an invariant to be broken. Raising an exception would be an appropriate response.
+An aggregate root should protect itself against commands that would cause an invariant to be broken. Raising an exception would be an appropriate response.
 
 ## Invalid commands
 
