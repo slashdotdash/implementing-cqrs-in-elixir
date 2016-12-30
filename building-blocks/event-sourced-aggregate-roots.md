@@ -1,6 +1,6 @@
 # Event-sourced aggregate roots
 
-An aggregate root must conform to the following behaviour to implement the event-sourcing pattern.
+An aggregate root must conform to the following behaviour to implement the event sourcing pattern.
 
 - Each public function must accept a command and return any resultant domain events, or raise an error.
 - Its internal state may only be modified by applying a domain event to its current state.
@@ -10,7 +10,7 @@ The command may be a single object or a list of arguments to the function. Curre
 
 ## Implementing an aggregate root in Elixir
 
-We can build an Elixir module that implements event-sourcing using the requirements defined above.
+We can build an Elixir module that implements event sourcing using the requirements defined above.
 
 ```elixir
 defmodule AggregateRoot do

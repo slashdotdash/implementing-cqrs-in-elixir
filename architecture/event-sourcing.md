@@ -1,4 +1,4 @@
-# Event-sourcing
+# Event sourcing
 
 ## Benefits
 
